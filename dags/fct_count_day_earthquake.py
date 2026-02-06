@@ -4,28 +4,20 @@ from airflow.operators.empty import EmptyOperator
 from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 
-# Конфигурация DAG
 OWNER = "GrishaevArtyom"
 DAG_ID = "fct_count_day_earthquake"
 
-# Используемые таблицы в DAG
-LAYER = "raw"
-SOURCE = "earthquake"
 SCHEMA = "dm"
 TARGET_TABLE = "fct_count_day_earthquake"
 
-# DWH
 PG_CONNECT = "postgres_dwh"
 
-LONG_DESCRIPTION = """
-# LONG DESCRIPTION
-"""
-
-SHORT_DESCRIPTION = "SHORT DESCRIPTION"
+DESCRIPTION = "Ежедневная агрегация данных: подсчёт средней магнитуды землетрясений за каждый день из оперативного слоя и сохранение результата в витрину данных. DAG запускается после загрузки сырых данных в PostgreSQL."
 
 args = {
     "owner": OWNER,
-    "start_date": pendulum.datetime(2025, 5, 1, tz="Europe/Moscow"),
+    "start_date": pendulum.datetime(2026, 1, 22, tz="UTC"),
+    "end_date": pendulum.datetime(2026, 2, 4, tz="UTC"),
     "catchup": True,
     "retries": 3,
     "retry_delay": pendulum.duration(hours=1),
@@ -33,17 +25,13 @@ args = {
 
 
 with DAG(
-    dag_id=DAG_ID,
-    schedule_interval="0 5 * * *",
-    default_args=args,
-    tags=["dm", "pg"],
-    description=SHORT_DESCRIPTION,
-    concurrency=1,
-    max_active_tasks=1,
-    max_active_runs=1,
+        dag_id=DAG_ID,
+        schedule_interval="0 0 * * *",
+        default_args=args,
+        tags=["dm", "pg"],
+        description=DESCRIPTION,
+        max_active_runs=1,
 ) as dag:
-    dag.doc_md = LONG_DESCRIPTION
-
     start = EmptyOperator(
         task_id="start",
     )
@@ -53,8 +41,8 @@ with DAG(
         external_dag_id="raw_from_s3_to_pg",
         allowed_states=["success"],
         mode="reschedule",
-        timeout=360000,  # длительность работы сенсора
-        poke_interval=60,  # частота проверки
+        timeout=7200,
+        poke_interval=60,
     )
 
     drop_stg_table_before = SQLExecuteQueryOperator(
